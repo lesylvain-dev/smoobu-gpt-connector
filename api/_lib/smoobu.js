@@ -79,7 +79,7 @@ export async function smoobuRequest(path, { method = 'GET', query = {}, body } =
 }
 
 export function assertConnectorAuth(req) {
-  const expected = requireEnv('CONNECTOR_API_KEY').trim();
+  const expected = requireEnv('GPT_CONNECTOR_KEY').trim();
   const header = req.headers['x-connector-key'];
   const supplied = Array.isArray(header) ? header[0] : header;
   const normalized = typeof supplied === 'string' ? supplied.trim() : '';
