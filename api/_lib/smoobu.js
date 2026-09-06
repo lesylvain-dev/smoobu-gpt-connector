@@ -21,8 +21,8 @@ function canonicalQuery(url) {
 }
 
 export async function smoobuRequest(path, { method = 'GET', query = {}, body } = {}) {
-  const apiKey = requireEnv('SMOOBU_API_KEY');
-  const apiSecret = requireEnv('SMOOBU_API_SECRET');
+  const apiKey = requireEnv('SMOOBU_API_KEY').trim();
+  const apiSecret = requireEnv('SMOOBU_API_SECRET').trim();
   const url = new URL(path, BASE_URL);
 
   for (const [key, value] of Object.entries(query)) {
@@ -79,9 +79,12 @@ export async function smoobuRequest(path, { method = 'GET', query = {}, body } =
 }
 
 export function assertConnectorAuth(req) {
-  const expected = requireEnv('CONNECTOR_API_KEY');
-  const supplied = req.headers['x-connector-key'];
-  if (!supplied || supplied !== expected) {
+  const expected = requireEnv('CONNECTOR_API_KEY').trim();
+  const header = req.headers['x-connector-key'];
+  const supplied = Array.isArray(header) ? header[0] : header;
+  const normalized = typeof supplied === 'string' ? supplied.trim() : '';
+
+  if (!normalized || normalized !== expected) {
     const error = new Error('Unauthorized');
     error.status = 401;
     throw error;
