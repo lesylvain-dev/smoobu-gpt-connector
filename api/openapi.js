@@ -5,12 +5,13 @@ export default function handler(req, res) {
     openapi: '3.1.0',
     info: {
       title: 'Smoobu GPT Connector',
-      version: '1.0.0',
+      version: '1.0.1',
       description: 'Read-only connector between a custom GPT and Smoobu.'
     },
     servers: [{ url: 'https://smoobu-gpt-connector.vercel.app' }],
     security: [{ ConnectorKey: [] }],
     components: {
+      schemas: {},
       securitySchemes: {
         ConnectorKey: {
           type: 'apiKey',
