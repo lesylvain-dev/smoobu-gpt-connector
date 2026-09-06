@@ -20,6 +20,11 @@ function canonicalQuery(url) {
     .join('&');
 }
 
+function smoobuTimestamp() {
+  // Smoobu documentation examples use UTC ISO-8601 timestamps without milliseconds.
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
 export async function smoobuRequest(path, { method = 'GET', query = {}, body } = {}) {
   const apiKey = requireEnv('SMOOBU_API_KEY').trim();
   const apiSecret = requireEnv('SMOOBU_API_SECRET').trim();
@@ -35,7 +40,7 @@ export async function smoobuRequest(path, { method = 'GET', query = {}, body } =
   }
 
   const payload = body === undefined ? '' : JSON.stringify(body);
-  const timestamp = new Date().toISOString();
+  const timestamp = smoobuTimestamp();
   const nonce = crypto.randomUUID();
   const canonical = [
     method.toUpperCase(),
