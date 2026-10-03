@@ -41,3 +41,17 @@ Dans l'authentification de l'Action GPT, choisir une clé API envoyée dans l'en
 - `GET /api/rates?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&apartments=...`
 
 La passerelle est volontairement en lecture seule pour la première version.
+
+## Accès MCP pour Copilot Smoobu
+
+`https://smoobu-gpt-connector.vercel.app/api/mcp` expose le transport MCP Streamable HTTP sans session, avec le SDK officiel. Les endpoints REST et OpenAPI restent disponibles sans modification.
+
+Les sept outils sont `healthCheck`, `listApartments`, `listReservations`, `getReservationMessages`, `getRates`, `getStats` et `getRevenueSummary`. Leurs paramètres sont dérivés du schéma OpenAPI et leurs appels réutilisent les handlers REST existants. Les consignes de Copilot Smoobu restent dans le plugin et ne sont pas remplacées.
+
+L’accès MCP exige la même clé `CONNECTOR_API_KEY` (ou l’alias existant `GPT_CONNECTOR_KEY`) via `x-connector-key` ou `Authorization: Bearer …`. Configurer la clé dans le mécanisme sécurisé d’authentification du client, jamais dans GitHub, une URL, le chat ou un fichier de plugin. Même la découverte MCP est protégée.
+
+Les requêtes avec un Origin sont limitées à `https://chatgpt.com` par défaut ; `MCP_ALLOWED_ORIGINS` permet de définir une liste séparée par des virgules. Aucun accès aux données n’est accordé sans clé.
+
+Après déploiement Vercel, vérifier l’initialisation et `tools/list` avec un client MCP authentifié avant de relier le plugin à cette URL. Les requêtes GET MCP renvoient 405 (pas de flux SSE autonome). Les outils sont en lecture seule : aucun envoi de message ou de facture.
+
+Validation : `npm ci` puis `npm test`. Le test utilise le client MCP officiel par HTTP, vérifie les sept outils, la transmission des paramètres, l’authentification, les Origins, les arguments manquants et les erreurs Smoobu avec des données simulées. Il ne prouve pas l’accès réel à Smoobu.
