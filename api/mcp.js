@@ -9,6 +9,7 @@ import revenue from './revenue.js';
 import stats from './stats.js';
 import messages from './messages.js';
 import rates from './rates.js';
+import sendMessage from './send-message.js';
 import { assertConnectorAuth, sendError } from './_lib/smoobu.js';
 import { verifyOAuthToken, oauthChallenge } from './_lib/oauth.js';
 
@@ -44,6 +45,23 @@ export function createServer(headers) {
       return { content: [{ type: 'text', text: JSON.stringify(data) }], ...(status >= 400 ? { isError: true } : {}) };
     });
   }
+  server.registerTool('sendReservationMessage', {
+    description: 'Send a message to the guest for a Smoobu reservation. Only call this after the user has explicitly approved the exact message to send.',
+    inputSchema: z.object({
+      reservationId: z.number().int().describe('Smoobu reservation ID'),
+      messageBody: z.string().min(1).describe('Exact approved message to send to the guest'),
+      subject: z.string().optional().describe('Optional message subject'),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  }, async (args) => {
+    let status = 200;
+    let data;
+    await sendMessage({ method: 'POST', headers, query: { reservationId: args.reservationId }, body: { messageBody: args.messageBody, subject: args.subject } }, {
+      status(value) { status = value; return this; },
+      json(value) { data = value; return this; },
+    });
+    return { content: [{ type: 'text', text: JSON.stringify(data) }], ...(status >= 400 ? { isError: true } : {}) };
+  });
   return server;
 }
 
