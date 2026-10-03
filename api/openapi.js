@@ -53,6 +53,30 @@ export default function handler(req, res) {
           responses: { '200': { description: 'Reservations from Smoobu' } }
         }
       },
+      '/api/revenue': {
+        get: {
+          operationId: 'getRevenueSummary',
+          summary: 'Get gross revenue summary from Smoobu bookings',
+          parameters: [
+            { name: 'from', in: 'query', required: true, schema: { type: 'string' }, description: 'Date range start, YYYY-MM-DD' },
+            { name: 'to', in: 'query', required: true, schema: { type: 'string' }, description: 'Date range end, YYYY-MM-DD' },
+            { name: 'apartmentId', in: 'query', schema: { type: 'integer' }, description: 'Optional apartment ID' }
+          ],
+          responses: { '200': { description: 'Gross revenue, booking count, average booking value and breakdowns' } }
+        }
+      },
+      '/api/stats': {
+        get: {
+          operationId: 'getStats',
+          summary: 'Get Smoobu performance statistics for a date range',
+          parameters: [
+            { name: 'from', in: 'query', required: true, schema: { type: 'string' }, description: 'Date range start, YYYY-MM-DD' },
+            { name: 'to', in: 'query', required: true, schema: { type: 'string' }, description: 'Date range end, YYYY-MM-DD' },
+            { name: 'apartmentId', in: 'query', schema: { type: 'integer' }, description: 'Optional apartment ID' }
+          ],
+          responses: { '200': { description: 'Revenue, bookings, occupancy, ADR and breakdowns' } }
+        }
+      },
       '/api/messages': {
         get: {
           operationId: 'getReservationMessages',
