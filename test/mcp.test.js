@@ -31,7 +31,7 @@ import handler from '../api/mcp.js';
     assert.equal((await actualFetch(url, { method: 'POST' })).status, 401);
     assert.equal((await actualFetch(url, { method: 'POST', headers: { 'x-connector-key': 'test-only', Origin: 'https://evil.example' } })).status, 403);
     assert.equal((await actualFetch(url, { headers: { 'x-connector-key': 'test-only' } })).status, 405);
-    await client.connect(new StreamableHTTPClientTransport(url, { requestInit: { headers: { Authorization: 'Bearer test-only' } } }));
+    await client.connect(new StreamableHTTPClientTransport(url, { requestInit: { headers: { 'x-connector-key': 'test-only' } } }));
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map(t => t.name).sort(), ['healthCheck', 'listApartments', 'listReservations', 'getRevenueSummary', 'getStats', 'getReservationMessages', 'getRates'].sort());
     const args = { getStats: { from: '2026-09-01', to: '2026-09-30' }, getRevenueSummary: { from: '2026-09-01', to: '2026-09-30' }, getReservationMessages: { reservationId: 123, onlyRelatedToGuest: true }, getRates: { start_date: '2026-09-01', end_date: '2026-09-30', apartments: '1,2' }, listReservations: { apartmentId: 1, page: 2 } };

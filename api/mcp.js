@@ -10,6 +10,7 @@ import stats from './stats.js';
 import messages from './messages.js';
 import rates from './rates.js';
 import { assertConnectorAuth, sendError } from './_lib/smoobu.js';
+import { verifyOAuthToken, oauthChallenge } from './_lib/oauth.js';
 
 const handlers = {
   healthCheck: health, listApartments: apartments, listReservations: reservations,
@@ -17,7 +18,7 @@ const handlers = {
 };
 
 export function createServer(headers) {
-  const server = new McpServer({ name: 'smoobu-gpt-connector', version: '1.1.0' });
+  const server = new McpServer({ name: 'smoobu-gpt-connector', version: '1.2.0' });
   let spec;
   openapi({ method: 'GET' }, { status() { return this; }, json(value) { spec = value; } });
   for (const item of Object.values(spec.paths)) {
@@ -47,16 +48,27 @@ export function createServer(headers) {
 }
 
 export default async function handler(req, res) {
-  // Native clients may use Bearer authentication; REST clients keep x-connector-key.
   const headers = { ...req.headers };
-  if (!headers['x-connector-key'] && typeof headers.authorization === 'string'
-      && headers.authorization.startsWith('Bearer ')) {
-    headers['x-connector-key'] = headers.authorization.slice(7);
-  }
   try {
     const allowed = (process.env.MCP_ALLOWED_ORIGINS || 'https://chatgpt.com').split(',').map(s => s.trim());
     if (req.headers.origin && !allowed.includes(req.headers.origin)) {
       return res.status(403).json({ error: 'Origin not allowed' });
+    }
+    const configured = Boolean(process.env.AUTHKIT_DOMAIN || process.env.MCP_ALLOWED_USER_ID);
+    if (configured) {
+      const token = headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+      if (!token) {
+        oauthChallenge(res);
+        return res.status(401).json({ error: 'OAuth login required' });
+      }
+      await verifyOAuthToken(token);
+      // Existing handlers continue to use the server-side connector key.
+      // Neither this key nor the OAuth token is returned to the model.
+      headers['x-connector-key'] = (process.env.CONNECTOR_API_KEY || process.env.GPT_CONNECTOR_KEY || '').trim();
+      delete headers.authorization;
+    } else if (!headers['x-connector-key']) {
+      oauthChallenge(res);
+      return res.status(401).json({ error: 'OAuth setup pending' });
     }
     assertConnectorAuth({ headers });
     if (req.method !== 'POST') {
@@ -69,6 +81,9 @@ export default async function handler(req, res) {
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
-    if (!res.headersSent) sendError(res, error);
+    if (!res.headersSent) {
+      if (error.status === 401) oauthChallenge(res);
+      sendError(res, error);
+    }
   }
 }

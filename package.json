@@ -1,6 +1,6 @@
 {
   "name": "smoobu-gpt-connector",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
+    "jose": "^6.2.12",
     "zod": "^4.6.5"
   },
   "scripts": {
