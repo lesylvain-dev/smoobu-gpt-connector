@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import handler from '../api/mcp.js';
 
- test('HTTP MCP: authentication, discovery, seven tools and validation', async () => {
+ test('HTTP MCP: authentication, discovery, eight tools and validation', async () => {
   process.env.CONNECTOR_API_KEY = 'test-only';
   process.env.SMOOBU_API_KEY = 'test';
   process.env.SMOOBU_API_SECRET = 'test';
@@ -33,13 +33,14 @@ import handler from '../api/mcp.js';
     assert.equal((await actualFetch(url, { headers: { 'x-connector-key': 'test-only' } })).status, 405);
     await client.connect(new StreamableHTTPClientTransport(url, { requestInit: { headers: { 'x-connector-key': 'test-only' } } }));
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map(t => t.name).sort(), ['healthCheck', 'listApartments', 'listReservations', 'getRevenueSummary', 'getStats', 'getReservationMessages', 'getRates'].sort());
-    const args = { getStats: { from: '2026-09-01', to: '2026-09-30' }, getRevenueSummary: { from: '2026-09-01', to: '2026-09-30' }, getReservationMessages: { reservationId: 123, onlyRelatedToGuest: true }, getRates: { start_date: '2026-09-01', end_date: '2026-09-30', apartments: '1,2' }, listReservations: { apartmentId: 1, page: 2 } };
+    assert.deepEqual(tools.map(t => t.name).sort(), ['healthCheck', 'listApartments', 'listReservations', 'getRevenueSummary', 'getStats', 'getReservationMessages', 'getRates', 'sendReservationMessage'].sort());
+    const args = { getStats: { from: '2026-09-01', to: '2026-09-30' }, getRevenueSummary: { from: '2026-09-01', to: '2026-09-30' }, getReservationMessages: { reservationId: 123, onlyRelatedToGuest: true }, getRates: { start_date: '2026-09-01', end_date: '2026-09-30', apartments: '1,2' }, listReservations: { apartmentId: 1, page: 2 }, sendReservationMessage: { reservationId: 123, subject: 'Test', messageBody: 'Bonjour' } };
     for (const tool of tools) {
       const result = await client.callTool({ name: tool.name, arguments: args[tool.name] || {} });
       assert.ok(!result.isError, tool.name);
     }
     assert.ok(upstream.some(url => url.includes('/123/messages?onlyRelatedToGuest=true')));
+    assert.ok(upstream.some(url => url.includes('/123/messages/send-message-to-guest')));
     assert.ok(upstream.some(url => url.includes('apartments%5B%5D=1') && url.includes('apartments%5B%5D=2')));
     const before = upstream.length;
     const invalid = await client.callTool({ name: 'getStats', arguments: {} });
