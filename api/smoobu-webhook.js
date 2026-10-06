@@ -89,6 +89,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid newMessage webhook payload' });
     }
 
+    // Smoobu also sends newMessage webhooks for messages sent by the host.
+    // Suppress only the confirmed host label; leave unknown senders visible.
+    const senderRole = typeof sender === 'string'
+      ? sender
+      : (sender?.type || sender?.role || sender?.name || '');
+    if (typeof senderRole === 'string' && senderRole.trim().toLowerCase() === 'host') {
+      console.info('smoobu.webhook_ignored', JSON.stringify({ reason: 'host_message' }));
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: 'host_message',
+        slackNotified: false,
+      });
+    }
+
     // Prefer the exact message included in the event when Smoobu provides it.
     // Never substitute another message from the same reservation.
     let body = messageText(event.data) || messageText(event.data?.message);
