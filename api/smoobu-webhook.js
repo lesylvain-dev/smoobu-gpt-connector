@@ -40,7 +40,7 @@ async function fetchMessage(reservationId, messageId) {
   return null;
 }
 
-async function postToSlack({ reservationId, messageId, sender, body, lookupFailed }) {
+async function postToSlack({ reservationId, messageId, sender, body, lookupFailed, senderNeedsReview }) {
   const webhookUrl = process.env.slack_webhook_url || process.env.SLACK_WEBHOOK_URL;
   if (!webhookUrl) throw new Error('Slack webhook URL is not configured');
 
@@ -52,7 +52,8 @@ async function postToSlack({ reservationId, messageId, sender, body, lookupFaile
 
   const text = [
     '🔔 Nouveau message Smoobu',
-    `Expéditeur : ${senderLabel}`,
+    `Expéditeur (indiqué par Smoobu) : ${senderLabel}`, 
+    senderNeedsReview ? '⚠️ Smoobu indique « host » : origine à vérifier, ce message peut provenir d’un e-mail voyageur.' : '',
     `Réservation : ${reservationId}`,
     `Message ID : ${messageId}`,
     '',
@@ -89,19 +90,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid newMessage webhook payload' });
     }
 
-    // Smoobu also sends newMessage webhooks for messages sent by the host.
-    // Suppress only the confirmed host label; leave unknown senders visible.
+    // Smoobu can label email-originated messages as "host" even when they
+    // appear as incoming messages in the reservation. Never silently drop
+    // such events until we can independently verify the direction.
     const senderRole = typeof sender === 'string'
       ? sender
       : (sender?.type || sender?.role || sender?.name || '');
-    if (typeof senderRole === 'string' && senderRole.trim().toLowerCase() === 'host') {
-      console.info('smoobu.webhook_ignored', JSON.stringify({ reason: 'host_message' }));
-      return res.status(200).json({
-        received: true,
-        ignored: true,
-        reason: 'host_message',
-        slackNotified: false,
-      });
+    const senderNeedsReview =
+      typeof senderRole === 'string' && senderRole.trim().toLowerCase() === 'host';
+    if (senderNeedsReview) {
+      console.info('smoobu.sender_ambiguous', JSON.stringify({ label: 'host', action: event.action }));
     }
 
     // Prefer the exact message included in the event when Smoobu provides it.
@@ -126,7 +124,7 @@ export default async function handler(req, res) {
       messageFound: Boolean(body),
       lookupFailed,
     }));
-    await postToSlack({ reservationId, messageId, sender, body, lookupFailed });
+    await postToSlack({ reservationId, messageId, sender, body, lookupFailed, senderNeedsReview });
 
     return res.status(200).json({
       received: true,
