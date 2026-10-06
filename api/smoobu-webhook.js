@@ -40,7 +40,7 @@ async function fetchMessage(reservationId, messageId) {
   return null;
 }
 
-async function postToSlack({ reservationId, messageId, sender, body, lookupFailed, senderNeedsReview }) {
+async function postToSlack({ reservationId, messageId, sender, body, lookupFailed, senderNeedsReview, diagnostic }) {
   const webhookUrl = process.env.slack_webhook_url || process.env.SLACK_WEBHOOK_URL;
   if (!webhookUrl) throw new Error('Slack webhook URL is not configured');
 
@@ -54,6 +54,7 @@ async function postToSlack({ reservationId, messageId, sender, body, lookupFaile
     '🔔 Nouveau message Smoobu',
     `Expéditeur (indiqué par Smoobu) : ${senderLabel}`, 
     senderNeedsReview ? '⚠️ Smoobu indique « host » : origine à vérifier, ce message peut provenir d’un e-mail voyageur.' : '',
+    diagnostic ? `Diagnostic : ${diagnostic}` : '',
     `Réservation : ${reservationId}`,
     `Message ID : ${messageId}`,
     '',
@@ -124,7 +125,18 @@ export default async function handler(req, res) {
       messageFound: Boolean(body),
       lookupFailed,
     }));
-    await postToSlack({ reservationId, messageId, sender, body, lookupFailed, senderNeedsReview });
+    const safeFields = Object.keys(event.data || {})
+      .filter(k => !/secret|token|key|authorization|message|body|text|content/i.test(k))
+      .sort();
+    const diagnostic = [
+      `senderType=${typeof sender}`,
+      `senderLabel=${senderRole || 'unknown'}`,
+      `inlineBody=${Boolean(messageText(event.data) || messageText(event.data?.message))}`,
+      `bodyFound=${Boolean(body)}`,
+      `lookupFailed=${lookupFailed}`,
+      `fields=${safeFields.join(',') || 'none'}`,
+    ].join(' | ');
+    await postToSlack({ reservationId, messageId, sender, body, lookupFailed, senderNeedsReview, diagnostic });
 
     return res.status(200).json({
       received: true,
