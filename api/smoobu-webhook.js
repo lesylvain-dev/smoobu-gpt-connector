@@ -26,6 +26,13 @@ async function fetchMessage(reservationId, messageId) {
   for (let page = 1; page <= 3; page++) {
     const data = await smoobuRequest(path, { query: { page } });
     const messages = findMessages(data);
+    console.info('smoobu.message_lookup', JSON.stringify({
+      page,
+      resultCount: messages.length,
+      totalItems: Number.isFinite(data?.total_items) ? data.total_items : null,
+      pageCount: Number.isFinite(data?.page_count) ? data.page_count : null,
+      matchFound: messages.some(item => String(item?.id ?? item?.messageId ?? '') === String(messageId)),
+    }));
     const matching = messages.find((item) => String(item?.id ?? item?.messageId ?? '') === String(messageId));
     if (matching) return messageText(matching);
     if (!messages.length) break;
@@ -85,6 +92,13 @@ export default async function handler(req, res) {
     // Prefer the exact message included in the event when Smoobu provides it.
     // Never substitute another message from the same reservation.
     let body = messageText(event.data) || messageText(event.data?.message);
+    console.info('smoobu.webhook_shape', JSON.stringify({
+      action: event.action,
+      topLevelFields: Object.keys(event).filter(k => !/secret|token|key|authorization/i.test(k)),
+      dataFields: Object.keys(event.data || {}).filter(k => !/secret|token|key|authorization/i.test(k)),
+      senderType: typeof sender,
+      inlineMessageFound: Boolean(body),
+    }));
     let lookupFailed = false;
     try {
       if (!body) body = await fetchMessage(reservationId, messageId);
@@ -93,6 +107,10 @@ export default async function handler(req, res) {
       console.error('Smoobu message lookup failed:', error.message);
     }
 
+    console.info('smoobu.message_result', JSON.stringify({
+      messageFound: Boolean(body),
+      lookupFailed,
+    }));
     await postToSlack({ reservationId, messageId, sender, body, lookupFailed });
 
     return res.status(200).json({
