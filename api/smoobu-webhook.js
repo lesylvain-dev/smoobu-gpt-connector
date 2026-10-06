@@ -1,10 +1,41 @@
-import { sendError } from './_lib/smoobu.js';
+import { sendError, smoobuRequest } from './_lib/smoobu.js';
 
-async function postToSlack({ reservationId, messageId, sender }) {
-  const webhookUrl = process.env.slack_webhook_url;
-  if (!webhookUrl) {
-    throw new Error('slack_webhook_url is not configured');
+function findMessages(data) {
+  if (Array.isArray(data)) return data;
+  for (const key of ['messages', 'items', 'data', 'results']) {
+    if (Array.isArray(data?.[key])) return data[key];
+    if (data?.[key] && data[key] !== data) {
+      const nested = findMessages(data[key]);
+      if (nested.length) return nested;
+    }
   }
+  return [];
+}
+
+function messageText(message) {
+  for (const field of ['messageBody', 'body', 'message', 'text', 'content']) {
+    const value = message?.[field];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+async function fetchMessage(reservationId, messageId) {
+  const path = `/api/reservations/${encodeURIComponent(reservationId)}/messages`;
+  // Smoobu's messages endpoint is paginated. Check a few pages to find the exact event.
+  for (let page = 1; page <= 3; page++) {
+    const data = await smoobuRequest(path, { query: { page } });
+    const messages = findMessages(data);
+    const matching = messages.find((item) => String(item?.id ?? item?.messageId ?? '') === String(messageId));
+    if (matching) return messageText(matching);
+    if (!messages.length) break;
+  }
+  return null;
+}
+
+async function postToSlack({ reservationId, messageId, sender, body, lookupFailed }) {
+  const webhookUrl = process.env.slack_webhook_url || process.env.SLACK_WEBHOOK_URL;
+  if (!webhookUrl) throw new Error('Slack webhook URL is not configured');
 
   const senderLabel =
     sender?.name ||
@@ -14,13 +45,16 @@ async function postToSlack({ reservationId, messageId, sender }) {
 
   const text = [
     '🔔 Nouveau message Smoobu',
-    `Voyageur : ${senderLabel}`,
+    `Expéditeur : ${senderLabel}`,
     `Réservation : ${reservationId}`,
     `Message ID : ${messageId}`,
     '',
-    'Ouvre ChatGPT / Copilot Smoobu pour récupérer la conversation et préparer une réponse.',
-    '⚠️ Aucune réponse ne doit être envoyée sans validation explicite de Sylvain.',
-  ].join('\n');
+    body ? `Message reçu :\n${body.slice(0, 2500)}` : 'Contenu non disponible pour le moment : à consulter dans Smoobu.',
+    lookupFailed ? '⚠️ Lecture Smoobu impossible : vérifier la connexion API.' : '',
+    '',
+    'Dans ChatGPT, demande une proposition de réponse pour cette réservation.',
+    '⚠️ Aucun message ne sera envoyé au voyageur sans validation explicite de Sylvain.',
+  ].filter(Boolean).join('\n');
 
   const response = await fetch(webhookUrl, {
     method: 'POST',
@@ -48,18 +82,28 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid newMessage webhook payload' });
     }
 
-    await postToSlack({ reservationId, messageId, sender });
+    let body = null;
+    let lookupFailed = false;
+    try {
+      body = await fetchMessage(reservationId, messageId);
+    } catch (error) {
+      lookupFailed = true;
+      console.error('Smoobu message lookup failed:', error.message);
+    }
+
+    await postToSlack({ reservationId, messageId, sender, body, lookupFailed });
 
     return res.status(200).json({
       received: true,
       action: 'newMessage',
       reservationId,
       messageId,
-      sender,
       slackNotified: true,
+      messageIncluded: Boolean(body),
       requiresUserApprovalBeforeReply: true,
     });
   } catch (error) {
+    console.error('Smoobu webhook error:', error.message);
     sendError(res, error);
   }
 }
