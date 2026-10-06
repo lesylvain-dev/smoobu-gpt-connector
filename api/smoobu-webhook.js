@@ -1,9 +1,9 @@
 import { sendError } from './_lib/smoobu.js';
 
 async function postToSlack({ reservationId, messageId, sender }) {
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  const webhookUrl = process.env.slack_webhook_url;
   if (!webhookUrl) {
-    throw new Error('SLACK_WEBHOOK_URL is not configured');
+    throw new Error('slack_webhook_url is not configured');
   }
 
   const senderLabel =
