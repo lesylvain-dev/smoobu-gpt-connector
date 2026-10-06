@@ -82,10 +82,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid newMessage webhook payload' });
     }
 
-    let body = null;
+    // Prefer the exact message included in the event when Smoobu provides it.
+    // Never substitute another message from the same reservation.
+    let body = messageText(event.data) || messageText(event.data?.message);
     let lookupFailed = false;
     try {
-      body = await fetchMessage(reservationId, messageId);
+      if (!body) body = await fetchMessage(reservationId, messageId);
     } catch (error) {
       lookupFailed = true;
       console.error('Smoobu message lookup failed:', error.message);
